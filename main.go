@@ -6,147 +6,163 @@ import (
 	"time"
 )
 
-type node struct {
-	visted bool
-	wall bool
-}
-
 type maze struct {
-	mazeMap [][]node
-	solved  bool
-	height int 
-	width int 
+	hWalls  [][]bool
+	vWalls  [][]bool
+	visited [][]bool
+	height  int
+	width   int
 }
 
-type Direction int;
+type Direction int
 
 const (
 	up Direction = iota
 	down
 	left
-	right  
-) 
+	right
+)
 
-var Directions = []Direction { 
-	up, 
-	down, 
+var Directions = []Direction{
+	up,
+	down,
 	left,
 	right,
 }
 
-
 func main() {
-	rand.Seed(time.Now().UnixNano())
+	var maze = newMaze(5, 5)
+	//maze.print()
+	recursiveBackTrackGenerate(maze, 0, 0)
 
-	var maze = initMaze(3, 3)
-
-	maze.printMaze()
-
-	//Randomly Selected Start
-	recursiveBackTrack(maze, 1, 1)
-
-	
+	maze.print()
 }
 
-//Create the maze map and set initial values 
-func initMaze(height, width int) *maze {
-	var mazeMap = make([][]node, height)
-	var maze = &maze{mazeMap, false, height, width}
+func newMaze(height, width int) *maze {
+	var hWalls = make([][]bool, height)
+	var vWalls = make([][]bool, height)
+	var visited = make([][]bool, height)
 
 	for h := 0; h < height; h++ {
 		for w := 0; w < width; w++ {
-			var newNode = &node{false, true}
-			maze.mazeMap[h] = append(maze.mazeMap[h], *newNode)
+			hWalls[h] = append(hWalls[h], true)    // Start with All Horizontal Walls
+			vWalls[h] = append(vWalls[h], true)    // Start with All Viritcal Walls
+			visited[h] = append(visited[h], false) // Start with All nodes not visited
 		}
 	}
 
-	return maze
+	return &maze{hWalls, vWalls, visited, height, width}
 }
 
-//Print Maze 
-func (mazeToPrint *maze) printMaze() { 
-	for h := 0; h < mazeToPrint.height; h++ {
-		fmt.Println("")
-		for w := 0; w < mazeToPrint.width; w++ { 
-			var nodeToPrint = mazeToPrint.mazeMap[w][h]
-			nodeToPrint.printNode()
+func (maze *maze) print() {
+	const hWallLineEnd = "+\n"
+	const hWall = "+---"
+	const emptyHWall = "+   "
+	const vWallLineEnd = "|\n"
+	const vWall = "|   "
+	const emptyVWall = "    "
+
+	fmt.Print("\n")
+	for h := 0; h < maze.height; h++ {
+		horizontalWallsLine := ""
+		virticalWallsLine := ""
+		for w := 0; w < maze.width; w++ {
+			horizontalWallsLine += printWall(maze.hWalls[w][h], hWall, emptyHWall)
+			virticalWallsLine += printWall(maze.vWalls[w][h], vWall, emptyVWall)
 		}
+		fmt.Print(horizontalWallsLine + hWallLineEnd)
+		fmt.Print(virticalWallsLine + vWallLineEnd)
 	}
-	fmt.Println("")
-}
 
-//Prints either "#" for wall or " " if not wall
-func (nodeToPrint *node) printNode() {
-	if nodeToPrint.wall { 
-		print("#")
+	finalLine := ""
+	for w := 0; w < maze.width; w++ {
+		finalLine += hWall
 	}
-	print(" ")
+	fmt.Print(finalLine + hWallLineEnd)
+	fmt.Print("\n")
 }
 
-
-//Check if node is Inside the Map
-func (mazeToValidate *maze) validNode(x int, y int) bool { 
-	var validHeight = y < mazeToValidate.height && y >= 0 
-	var validWidth = x < mazeToValidate.width && x >= 0
-	if ( validHeight && validWidth) { 
-			return true 
-	} 
-	return false
+func printWall(displayWall bool, wall string, emptyWall string) string {
+	if displayWall {
+		return wall
+	}
+	return emptyWall
 }
 
-func (maze *maze) visted(x int, y int) bool { 
-	return maze.mazeMap[x][y].visted
-}
+func recursiveBackTrackGenerate(maze *maze, x int, y int) {
 
-func (maze *maze) setVisted(x int, y int) {
-	maze.mazeMap[x][y].visted = true
-}
-
-func (maze *maze) removeWall(x int, y int) { 
-	maze.mazeMap[x][y].wall = false
-}
-
-func recursiveBackTrack(maze *maze, x int, y int) { 
+	fmt.Println("Current Node ", x, y)
+	maze.visited[x][y] = true
 
 	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(Directions), func(i, j int) { 
-		Directions[i] , Directions[j] = Directions[j] , Directions[i]
+	rand.Shuffle(len(Directions), func(i, j int) {
+		Directions[i], Directions[j] = Directions[j], Directions[i]
 	})
 
 	//Go through all child nodes
-	for _ , direction := range Directions { 
-		maze.printMaze()
-		x, y := navigate(direction, x, y)
-		fmt.Printf("looking at node %d, %d\n", x , y)
-		// fmt.Printf("valid node %t\n", maze.validNode(x, y))
-		// fmt.Printf("visted node %t\n", maze.visted(x, y))
+	for _, direction := range Directions {
+		//time.Sleep(1 * time.Second)
 
-		time.Sleep(2 * time.Second)
-
-		if maze.validNode(x, y) && !maze.visted(x, y) { 
-			fmt.Printf("removed %d, %d\n",x,y)
-			maze.setVisted(x, y)
-			maze.removeWall(x, y)
-			recursiveBackTrack(maze, x, y) 
+		var newX, newY int
+		switch direction {
+		case up:
+			newX = x
+			newY = y - 1
+			fmt.Println("up")
+			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
+				maze.hWalls[newX][newY+1] = false
+				fmt.Println("Removing = ", newX, newY)
+				recursiveBackTrackGenerate(maze, newX, newY)
+			}
+		case down:
+			newX = x
+			newY = y + 1
+			fmt.Println("down")
+			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
+				maze.hWalls[newX][newY] = false
+				fmt.Println("Removing = ", newX, newY)
+				recursiveBackTrackGenerate(maze, newX, newY)
+			}
+		case left:
+			newX = x - 1
+			newY = y
+			fmt.Println("left")
+			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
+				maze.vWalls[newX+1][newY] = false
+				fmt.Println("Removing = ", newX, newY)
+				recursiveBackTrackGenerate(maze, newX, newY)
+			}
+		case right:
+			newX = x + 1
+			newY = y
+			fmt.Println("right")
+			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
+				maze.vWalls[newX][newY] = false
+				fmt.Println("Removing = ", newX, newY)
+				recursiveBackTrackGenerate(maze, newX, newY)
+			}
+		default:
+			return
 		}
 	}
 
-	//No Path Forward Found - BackTrack
-	maze.printMaze()
-	return 
+	fmt.Println("BackTrack")
 }
 
-func navigate(directionToMove Direction, x int, y int) (int, int) { 
-	switch directionToMove { 
-	case up: 
-		return x, y+1
-	case down: 
-		return x, y-1
-	case left: 
-		return x-1, y
-	case right: 
-		return x+1, y
-	default: 
-	    return 0,0
+func (maze *maze) validNode(x, y int) bool {
+	validHeight := y < maze.height && y >= 0
+	validWidth := x < maze.width && x >= 0
+	if validHeight && validWidth {
+		return true
 	}
+	return false
+}
+
+func (maze *maze) notvisited(x, y int) bool {
+	fmt.Println("Visted - ", maze.visited[x][y])
+	return !maze.visited[x][y]
+}
+
+func recursiveBackTrackSolve(maze *maze, x, y int) {
+
 }
