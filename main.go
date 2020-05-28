@@ -6,19 +6,16 @@ import (
 	"time"
 )
 
-type node struct {
-	x int
-	y int
-}
-
 type maze struct {
-	hWalls  [][]bool
-	vWalls  [][]bool
-	visited [][]bool
-	height  int
-	width   int
-	path    [][]bool
-	goal    *node
+	hWalls          [][]bool
+	vWalls          [][]bool
+	generateVisited [][]bool
+	solveVisited    [][]bool
+	height          int
+	width           int
+	path            [][]bool
+	goalX           int
+	goalY           int
 }
 
 type direction int
@@ -30,6 +27,23 @@ const (
 	right
 )
 
+func shuffleDirections() []direction {
+
+	directions := []direction{
+		up,
+		down,
+		left,
+		right,
+	}
+
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(directions), func(i, j int) {
+		directions[i], directions[j] = directions[j], directions[i]
+	})
+
+	return directions
+}
+
 type wallDirection int
 
 const (
@@ -37,34 +51,19 @@ const (
 	horizontal
 )
 
-var directions = []direction{
-	up,
-	down,
-	left,
-	right,
-}
-
-const (
-	infoColor    = "\033[1;34m%s\033[0m"
-	noticeColor  = "\033[1;36m%s\033[0m"
-	warningColor = "\033[1;33m%s\033[0m"
-	errorColor   = "\033[1;31m%s\033[0m"
-	debugColor   = "\033[0;36m%s\033[0m"
-)
-
 func main() {
-	var maze = newMaze(5, 5)
-	recursiveBackTrackGenerate(maze, 0, 0)
-	maze.print()
 
-	//fmt.Println("HWall =", maze.hWalls[1][1]) //UpperWall - up is fine... down is not
-	//fmt.Println("VWall =", maze.vWalls[1][1]) //leftWAll - left is fine... right is not
+	//Make a new Maze
+	var maze = newMaze(20, 20, 5, 5)
+	maze.generate(0, 0)
 
-	maze.resetVisted()
+	//Print the created Maze
+	//maze.print()
+	maze.printSolution()
 
-	maze.goal = &node{3, 3}
-	maze.initPath()
 	solved := solve(maze, 0, 0)
+
+	// maze.printSolution()
 
 	maze.printSolution()
 
@@ -73,22 +72,27 @@ func main() {
 	// fmt.Println("Goal : ", maze.goal.x, maze.goal.y)
 }
 
-func newMaze(height, width int) *maze {
+func newMaze(height, width, goalX, goalY int) *maze {
 	var hWalls = make([][]bool, height)
 	var vWalls = make([][]bool, height)
-	var visited = make([][]bool, height)
+	var solveVisited = make([][]bool, height)
+	var generateVisited = make([][]bool, height)
+	var path = make([][]bool, height)
 
 	for h := 0; h < height; h++ {
 		for w := 0; w < width; w++ {
-			hWalls[h] = append(hWalls[h], true)    // Start with All Horizontal Walls
-			vWalls[h] = append(vWalls[h], true)    // Start with All Viritcal Walls
-			visited[h] = append(visited[h], false) // Start with All nodes not visited
+			hWalls[h] = append(hWalls[h], true)                    // Start with all horizontal walls
+			vWalls[h] = append(vWalls[h], true)                    // Start with all viritcal walls
+			solveVisited[h] = append(solveVisited[h], false)       // Start with all nodes not visited
+			generateVisited[h] = append(generateVisited[h], false) // Start with all nodes not visited
+			path[h] = append(path[h], false)                       // Start with empty path
 		}
 	}
 
-	return &maze{hWalls, vWalls, visited, height, width, nil, nil}
+	return &maze{hWalls, vWalls, generateVisited, solveVisited, height, width, path, goalX, goalY}
 }
 
+//Consider Replacing with single print
 func (maze *maze) print() {
 	const hWallLineEnd = "+\n"
 	const hWall = "+---"
@@ -124,64 +128,72 @@ func printWall(displayWall bool, wall string, emptyWall string) string {
 	return emptyWall
 }
 
-func recursiveBackTrackGenerate(maze *maze, x int, y int) {
+func (maze *maze) generate(x int, y int) {
 
-	//fmt.Println("Current Node ", x, y)
-	maze.visited[x][y] = true
+	maze.generateVisited[x][y] = true
 
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(directions), func(i, j int) {
-		directions[i], directions[j] = directions[j], directions[i]
-	})
+	directions := shuffleDirections()
 
 	//Go through all child nodes
 	for _, direction := range directions {
-		//time.Sleep(1 * time.Second)
-
 		var newX, newY int
 		switch direction {
 		case up:
 			newX = x
 			newY = y - 1
-			//fmt.Println("up")
-			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
-				maze.hWalls[newX][newY+1] = false
-				//fmt.Println("Removing = ", newX, newY)
-				recursiveBackTrackGenerate(maze, newX, newY)
+			if maze.validNode(newX, newY) && !maze.generateVisited[newX][newY] {
+				maze.clearHorzontalWall(newX, newY+1)
+				maze.generate(newX, newY)
 			}
 		case down:
 			newX = x
 			newY = y + 1
-			//fmt.Println("down")
-			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
-				maze.hWalls[newX][newY] = false
-				//fmt.Println("Removing = ", newX, newY)
-				recursiveBackTrackGenerate(maze, newX, newY)
+			if maze.validNode(newX, newY) && !maze.generateVisited[newX][newY] {
+				maze.clearHorzontalWall(newX, newY)
+				maze.generate(newX, newY)
 			}
 		case left:
 			newX = x - 1
 			newY = y
-			//fmt.Println("left")
-			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
-				maze.vWalls[newX+1][newY] = false
-				//fmt.Println("Removing = ", newX, newY)
-				recursiveBackTrackGenerate(maze, newX, newY)
+			if maze.validNode(newX, newY) && !maze.generateVisited[newX][newY] {
+				maze.clearViriticalWall(newX+1, newY)
+				maze.generate(newX, newY)
 			}
 		case right:
 			newX = x + 1
 			newY = y
-			//fmt.Println("right")
-			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
-				maze.vWalls[newX][newY] = false
-				//fmt.Println("Removing = ", newX, newY)
-				recursiveBackTrackGenerate(maze, newX, newY)
+			if maze.validNode(newX, newY) && !maze.generateVisited[newX][newY] {
+				maze.clearViriticalWall(newX, newY)
+				maze.generate(newX, newY)
 			}
 		default:
 			return
 		}
 	}
+}
 
-	//fmt.Println("BackTrack")
+func (maze *maze) clearViriticalWall(x, y int) {
+	maze.vWalls[x][y] = false
+}
+
+func (maze *maze) virticalWall(x, y int) bool {
+	return maze.vWalls[x][y]
+}
+
+func (maze *maze) clearHorzontalWall(x, y int) {
+	maze.hWalls[x][y] = false
+}
+
+func (maze *maze) horizontalWall(x, y int) bool {
+	return maze.hWalls[x][y]
+}
+
+func (maze *maze) setPath(x, y int) {
+	maze.path[x][y] = true
+}
+
+func (maze *maze) unsetPath(x, y int) {
+	maze.path[x][y] = false
 }
 
 func (maze *maze) validNode(x, y int) bool {
@@ -193,56 +205,34 @@ func (maze *maze) validNode(x, y int) bool {
 	return false
 }
 
-func (maze *maze) notvisited(x, y int) bool {
-	//fmt.Println("Visted - ", maze.visited[x][y])
-	return !maze.visited[x][y]
-}
-
-func (maze *maze) resetVisted() {
-	for w := 0; w < maze.width; w++ {
-		for h := 0; h < maze.height; h++ {
-			maze.visited[w][h] = false
-		}
+func (maze *maze) isGoal(x, y int) bool {
+	if x == maze.goalX && y == maze.goalY {
+		return true
 	}
-}
-
-func (maze *maze) initPath() {
-	maze.path = make([][]bool, maze.height)
-	for h := 0; h < maze.height; h++ {
-		for w := 0; w < maze.height; w++ {
-			maze.path[h] = append(maze.path[h], false)
-		}
-	}
+	return false
 }
 
 func solve(maze *maze, x int, y int) bool {
 
-	maze.path[x][y] = true
-	maze.visited[x][y] = true
+	maze.setPath(x, y)
+	maze.solveVisited[x][y] = true
 
-	if x == maze.goal.x && y == maze.goal.y {
+	if maze.isGoal(x, y) {
 		return true
 	}
 
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(directions), func(i, j int) {
-		directions[i], directions[j] = directions[j], directions[i]
-	})
+	directions := shuffleDirections()
 
 	//maze.printSolution()
 	//time.Sleep(1 * time.Second)
 
 	for _, direction := range directions {
-
 		switch direction {
 		case up:
 			newX := x
 			newY := y + 1
-			//fmt.Println("current Node", newX, newY)
-			if maze.validNode(newX, newY) { //TODO: Apply this change to all if short circuit doesnt work
-				//fmt.Println("HWall =", maze.hWalls[newX][newY])
-				//fmt.Println("Up")
-				if !maze.visited[newX][newY] && !maze.hWalls[newX][newY] { //y+1 is giving problems
+			if maze.validNode(newX, newY) {
+				if !maze.solveVisited[newX][newY] && !maze.horizontalWall(newX, newY) {
 					if solve(maze, newX, newY) {
 						return true
 					}
@@ -251,12 +241,8 @@ func solve(maze *maze, x int, y int) bool {
 		case down:
 			newX := x
 			newY := y - 1
-			//fmt.Println("current Node", newX, newY)
 			if maze.validNode(newX, newY) {
-				//fmt.Println("HWall =", maze.hWalls[newX][newY])
-				//fmt.Println("Down")
-				if !maze.visited[newX][newY] && !maze.hWalls[newX][newY+1] {
-
+				if !maze.solveVisited[newX][newY] && !maze.horizontalWall(newX, newY+1) {
 					if solve(maze, newX, newY) {
 						return true
 					}
@@ -265,11 +251,8 @@ func solve(maze *maze, x int, y int) bool {
 		case left:
 			newX := x - 1
 			newY := y
-			//fmt.Println("current Node", newX, newY)
 			if maze.validNode(newX, newY) {
-				//fmt.Println("vWall =", maze.vWalls[newX][newY])
-				//fmt.Println("Left")
-				if !maze.visited[newX][newY] && !maze.vWalls[newX+1][newY] {
+				if !maze.solveVisited[newX][newY] && !maze.virticalWall(newX+1, newY) {
 					if solve(maze, newX, newY) {
 						return true
 					}
@@ -278,11 +261,8 @@ func solve(maze *maze, x int, y int) bool {
 		case right:
 			newX := x + 1
 			newY := y
-			//fmt.Println("current Node", newX, newY)
 			if maze.validNode(newX, newY) {
-				//fmt.Println("vWall =", maze.vWalls[newX][newY])
-				//fmt.Println("right")
-				if !maze.visited[newX][newY] && !maze.vWalls[newX][newY] {
+				if !maze.solveVisited[newX][newY] && !maze.virticalWall(newX, newY) {
 					if solve(maze, newX, newY) {
 						return true
 					}
@@ -290,28 +270,18 @@ func solve(maze *maze, x int, y int) bool {
 			}
 
 		default:
-			//fmt.Println("default")
 			return false
 		}
 	}
 
-	//fmt.Println("BackTrack")
-
-	maze.path[x][y] = false
+	maze.unsetPath(x, y)
 	return false
 }
 
 func (maze *maze) printSolution() {
 	const hWallLineEnd = "+\n"
 	const hWall = "+---"
-	const emptyHWall = "+   "
 	const vWallLineEnd = "|\n"
-	const vWall = "|   "
-	const vWallPath = "| * " //Color text output
-	const emptyVWall = "    "
-	const emptyVWallPath = " * " //Color text output
-	// const goal = "  x  "
-	// const goalWithWall = "|  x  "
 
 	fmt.Print("\n")
 	for h := 0; h < maze.height; h++ {
@@ -355,7 +325,7 @@ func (maze *maze) printViriticalWall(x, y int) string {
 
 	if maze.vWalls[x][y] {
 
-		if maze.goal.x == x && maze.goal.y == y {
+		if maze.goalX == x && maze.goalY == y {
 			return GoalVWall
 		}
 
@@ -365,12 +335,11 @@ func (maze *maze) printViriticalWall(x, y int) string {
 		return vWall
 	}
 
+	if maze.goalX == x && maze.goalY == y {
+		return emptyGoal
+	}
+
 	if maze.path[x][y] {
-
-		if maze.goal.x == x && maze.goal.y == y {
-			return emptyGoal
-		}
-
 		return emptyVWallPath
 	}
 
@@ -383,56 +352,3 @@ func (maze *maze) printWallSol(direction wallDirection, x int, y int) string {
 	}
 	return maze.printHorizontalWall(x, y)
 }
-
-// func recursiveBackTrackSolve(maze *maze, x, y int) {
-// 	if maze.goal.x == x && maze.goal.y == y {
-// 		return
-// 	}
-
-// 	//Go through all child nodes
-// 	for _, direction := range directions {
-// 		//time.Sleep(1 * time.Second)
-
-// 		var newX, newY int
-// 		switch direction {
-// 		case up:
-// 			newX = x
-// 			newY = y - 1
-// 			fmt.Println("up")
-// 			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
-// 				maze.hWalls[newX][newY+1] = false
-// 				fmt.Println("Removing = ", newX, newY)
-// 				recursiveBackTrackGenerate(maze, newX, newY)
-// 			}
-// 		case down:
-// 			newX = x
-// 			newY = y + 1
-// 			fmt.Println("down")
-// 			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
-// 				maze.hWalls[newX][newY] = false
-// 				fmt.Println("Removing = ", newX, newY)
-// 				recursiveBackTrackGenerate(maze, newX, newY)
-// 			}
-// 		case left:
-// 			newX = x - 1
-// 			newY = y
-// 			fmt.Println("left")
-// 			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
-// 				maze.vWalls[newX+1][newY] = false
-// 				fmt.Println("Removing = ", newX, newY)
-// 				recursiveBackTrackGenerate(maze, newX, newY)
-// 			}
-// 		case right:
-// 			newX = x + 1
-// 			newY = y
-// 			fmt.Println("right")
-// 			if maze.validNode(newX, newY) && maze.notvisited(newX, newY) {
-// 				maze.vWalls[newX][newY] = false
-// 				fmt.Println("Removing = ", newX, newY)
-// 				recursiveBackTrackGenerate(maze, newX, newY)
-// 			}
-// 		default:
-// 			return
-// 		}
-// 	}
-// }
