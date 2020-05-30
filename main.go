@@ -27,23 +27,6 @@ const (
 	right
 )
 
-func shuffleDirections() []direction {
-
-	directions := []direction{
-		up,
-		down,
-		left,
-		right,
-	}
-
-	rand.Seed(time.Now().UnixNano())
-	rand.Shuffle(len(directions), func(i, j int) {
-		directions[i], directions[j] = directions[j], directions[i]
-	})
-
-	return directions
-}
-
 type wallDirection int
 
 const (
@@ -52,24 +35,16 @@ const (
 )
 
 func main() {
-
-	//Make a new Maze
-	var maze = newMaze(20, 20, 5, 5)
+	var maze = newMaze(15, 15, 2, 5)
 	maze.generate(0, 0)
 
-	//Print the created Maze
-	//maze.print()
 	maze.printSolution()
 
 	solved := solve(maze, 0, 0)
 
-	// maze.printSolution()
-
 	maze.printSolution()
 
 	fmt.Println("Solved :", solved)
-	// maze.goal = &node{2, 2}
-	// fmt.Println("Goal : ", maze.goal.x, maze.goal.y)
 }
 
 func newMaze(height, width, goalX, goalY int) *maze {
@@ -92,40 +67,21 @@ func newMaze(height, width, goalX, goalY int) *maze {
 	return &maze{hWalls, vWalls, generateVisited, solveVisited, height, width, path, goalX, goalY}
 }
 
-//Consider Replacing with single print
-func (maze *maze) print() {
-	const hWallLineEnd = "+\n"
-	const hWall = "+---"
-	const emptyHWall = "+   "
-	const vWallLineEnd = "|\n"
-	const vWall = "|   "
-	const emptyVWall = "    "
+func shuffleDirections() []direction {
 
-	fmt.Print("\n")
-	for h := 0; h < maze.height; h++ {
-		horizontalWallsLine := ""
-		virticalWallsLine := ""
-		for w := 0; w < maze.width; w++ {
-			horizontalWallsLine += printWall(maze.hWalls[w][h], hWall, emptyHWall)
-			virticalWallsLine += printWall(maze.vWalls[w][h], vWall, emptyVWall)
-		}
-		fmt.Print(horizontalWallsLine + hWallLineEnd)
-		fmt.Print(virticalWallsLine + vWallLineEnd)
+	directions := []direction{
+		up,
+		down,
+		left,
+		right,
 	}
 
-	finalLine := ""
-	for w := 0; w < maze.width; w++ {
-		finalLine += hWall
-	}
-	fmt.Print(finalLine + hWallLineEnd)
-	fmt.Print("\n")
-}
+	rand.Seed(time.Now().UnixNano())
+	rand.Shuffle(len(directions), func(i, j int) {
+		directions[i], directions[j] = directions[j], directions[i]
+	})
 
-func printWall(displayWall bool, wall string, emptyWall string) string {
-	if displayWall {
-		return wall
-	}
-	return emptyWall
+	return directions
 }
 
 func (maze *maze) generate(x int, y int) {
@@ -223,49 +179,41 @@ func solve(maze *maze, x int, y int) bool {
 
 	directions := shuffleDirections()
 
-	//maze.printSolution()
-	//time.Sleep(1 * time.Second)
-
 	for _, direction := range directions {
 		switch direction {
 		case up:
 			newX := x
 			newY := y + 1
-			if maze.validNode(newX, newY) {
-				if !maze.solveVisited[newX][newY] && !maze.horizontalWall(newX, newY) {
-					if solve(maze, newX, newY) {
-						return true
-					}
+			if maze.validNode(newX, newY) && !maze.solveVisited[newX][newY] && !maze.horizontalWall(newX, newY) {
+				if solve(maze, newX, newY) {
+					return true
 				}
 			}
+
 		case down:
 			newX := x
 			newY := y - 1
-			if maze.validNode(newX, newY) {
-				if !maze.solveVisited[newX][newY] && !maze.horizontalWall(newX, newY+1) {
-					if solve(maze, newX, newY) {
-						return true
-					}
+			if maze.validNode(newX, newY) && !maze.solveVisited[newX][newY] && !maze.horizontalWall(newX, newY+1) {
+				if solve(maze, newX, newY) {
+					return true
 				}
 			}
+
 		case left:
 			newX := x - 1
 			newY := y
-			if maze.validNode(newX, newY) {
-				if !maze.solveVisited[newX][newY] && !maze.virticalWall(newX+1, newY) {
-					if solve(maze, newX, newY) {
-						return true
-					}
+			if maze.validNode(newX, newY) && !maze.solveVisited[newX][newY] && !maze.virticalWall(newX+1, newY) {
+				if solve(maze, newX, newY) {
+					return true
 				}
 			}
+
 		case right:
 			newX := x + 1
 			newY := y
-			if maze.validNode(newX, newY) {
-				if !maze.solveVisited[newX][newY] && !maze.virticalWall(newX, newY) {
-					if solve(maze, newX, newY) {
-						return true
-					}
+			if maze.validNode(newX, newY) && !maze.solveVisited[newX][newY] && !maze.virticalWall(newX, newY) {
+				if solve(maze, newX, newY) {
+					return true
 				}
 			}
 
@@ -323,6 +271,10 @@ func (maze *maze) printViriticalWall(x, y int) string {
 	const emptyGoal = "  X "
 	const GoalVWall = "| X "
 
+	if maze.isGoal(x, y) {
+
+	}
+
 	if maze.vWalls[x][y] {
 
 		if maze.goalX == x && maze.goalY == y {
@@ -332,6 +284,7 @@ func (maze *maze) printViriticalWall(x, y int) string {
 		if maze.path[x][y] {
 			return vWallPath
 		}
+
 		return vWall
 	}
 
@@ -345,6 +298,9 @@ func (maze *maze) printViriticalWall(x, y int) string {
 
 	return emptyVWall
 }
+
+func (maze *maze) 
+
 
 func (maze *maze) printWallSol(direction wallDirection, x int, y int) string {
 	if direction == virtical {
